@@ -1,0 +1,83 @@
+From 50727de191b549edff471030fa82b68165160749 Mon Sep 17 00:00:00 2001
+From: Navid Ghahremani <ghahramani.navid@gmail.com>
+Date: Sat, 26 Sep 2026 02:08:08 +0100
+Subject: [PATCH] luci-app-firewall: add hardware LAN switching option
+
+Show a "Hardware LAN switching" checkbox in the Routing/NAT Offloading
+section when the device provides /etc/config/hw_switching (ZTE ZXHN H3600,
+sanechips target). The option lives in its own config so that toggling it
+does not reload the network; the target's /etc/init.d/hw_switching applies
+it. The section is only shown where the config exists.
+
+Grant the firewall ACL read/write access to the hw_switching config.
+
+Signed-off-by: Navid Ghahremani <ghahramani.navid@gmail.com>
+---
+ .../luci-static/resources/view/firewall/zones.js   | 14 +++++++++++++-
+ .../usr/share/rpcd/acl.d/luci-app-firewall.json    |  4 ++--
+ 2 files changed, 15 insertions(+), 3 deletions(-)
+
+diff --git a/applications/luci-app-firewall/htdocs/luci-static/resources/view/firewall/zones.js b/applications/luci-app-firewall/htdocs/luci-static/resources/view/firewall/zones.js
+index ae78fb1..549c440 100644
+--- a/applications/luci-app-firewall/htdocs/luci-static/resources/view/firewall/zones.js
++++ b/applications/luci-app-firewall/htdocs/luci-static/resources/view/firewall/zones.js
+@@ -18,7 +18,8 @@ return view.extend({
+ 	load() {
+ 		return Promise.all([
+ 			this.callConntrackHelpers(),
+-			firewall.getDefaults()
++			firewall.getDefaults(),
++			uci.load('hw_switching').catch(() => null)
+ 		]);
+ 	},
+ 
+@@ -35,6 +36,8 @@ return view.extend({
+ 
+ 		m = new form.Map('firewall', _('Firewall - Zone Settings'),
+ 			_('The firewall creates zones over your network interfaces to control network traffic flow.'));
++		if (uci.get('hw_switching', 'settings'))
++			m.chain('hw_switching');
+ 
+ 		s = m.section(form.TypedSection, 'defaults', _('General Settings'));
+ 		s.anonymous = true;
+@@ -93,6 +96,15 @@ return view.extend({
+ 				uci.set('firewall', section_id, 'flow_offloading', value === '0' ? null : '1');
+ 				uci.set('firewall', section_id, 'flow_offloading_hw', value === '2' ? '1' : null);
+ 			};
++
++			/* ZTE ZX279128 switch: /etc/config/hw_switching, applied by /etc/init.d/hw_switching */
++			if (uci.get('hw_switching', 'settings')) {
++				o = s.option(form.Flag, 'enabled', _('Hardware LAN switching'),
++					_('Let the Ethernet switch forward traffic between the LAN ports of one bridge at full speed, without the CPU. The router itself and hosts on Wi-Fi are still reached through the CPU. Traffic switched in hardware bypasses bridge firewall rules and packet captures on the router.'));
++				o.uciconfig = 'hw_switching';
++				o.ucisection = 'settings';
++				o.rmempty = false;
++			}
+ 		}
+ 
+ 
+diff --git a/applications/luci-app-firewall/root/usr/share/rpcd/acl.d/luci-app-firewall.json b/applications/luci-app-firewall/root/usr/share/rpcd/acl.d/luci-app-firewall.json
+index 17d1fba..9705658 100644
+--- a/applications/luci-app-firewall/root/usr/share/rpcd/acl.d/luci-app-firewall.json
++++ b/applications/luci-app-firewall/root/usr/share/rpcd/acl.d/luci-app-firewall.json
+@@ -9,7 +9,7 @@
+ 				"file": [ "read" ],
+ 				"luci": [ "getConntrackHelpers" ]
+ 			},
+-			"uci": [ "firewall" ]
++			"uci": [ "firewall", "hw_switching" ]
+ 		},
+ 		"write": {
+ 			"file": {
+@@ -18,7 +18,7 @@
+ 			"ubus": {
+ 				"file": [ "write" ]
+ 			},
+-			"uci": [ "firewall" ]
++			"uci": [ "firewall", "hw_switching" ]
+ 		}
+ 	}
+ }
+-- 
+2.55.0
+
