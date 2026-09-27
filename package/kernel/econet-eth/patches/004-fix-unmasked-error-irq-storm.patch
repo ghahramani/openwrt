@@ -1,0 +1,83 @@
+From: local
+Subject: econet-eth: mask non-DONE IRQ purposes after they fire, not just DONE
+
+ROOT CAUSE CONFIRMED on real EN751627 hardware -- this is the actual
+cause of the periodic full-router hang investigated in the qdma
+deadlock bug report, not the reg_lock bug (patch 002, real but
+separate) and not the "rx: on unexpected fport 0" print rate (patch
+003, a red herring -- reverting that hypothesis is not necessary since
+the fix is harmless on its own, but it did not fix this).
+
+Confirmed via the driver's own debugfs interrupt counters
+(/sys/kernel/debug/econet_eth/qdma0/interrupts) while the router was
+hung and completely unresponsive on one CPU (but still answering
+hardware IRQs/IPIs -- confirmed via /proc/interrupts and a forced
+`echo l > /proc/sysrq-trigger` NMI backtrace, both showing the same
+CPU frozen at the same PC, inside handle_softirqs(), for 30+ minutes
+straight, immune to SIGKILL, immune to SIGSTOP):
+
+  count      irq  reg  bit  origin  chain  meaning
+  692542517  0    0    12   TX      0      ERR_COHERENT
+       522   0    0    1    RX      0      DONE
+       522   0    0    11   UNSPEC  -1     OVERFLOW
+
+692 million and climbing, against normal (double-digit/low-hundreds)
+counts for every legitimate RX/TX-done interrupt in the same window.
+/proc/interrupts corroborated this at the whole-line level: the
+econet_eth-0.0 IRQ alone had over 650 million hits, entirely on one
+CPU, versus a few hundred thousand for that CPU's own local timer
+over the same uptime -- roughly a quarter million interrupts/second,
+sustained, since shortly after boot.
+
+en75_init_final() deliberately enables (leaves unmasked) several IRQ
+purposes beyond plain RX/TX DONE, including IPS_ERR_COHERENT,
+IPS_OVERFLOW, IPS_NO_DSCP, IPS_LOW_DSCP, and the PON external-hardware
+interrupts -- clearly intended to be rare/exceptional conditions worth
+logging. But en75_irq_handler()'s dispatch loop only ever adds a bit
+to disable_int (masking it until something explicitly re-enables it,
+mirroring how DONE relies on NAPI to re-enable via
+en75_qdma_set_irqmask() once the poll completes) for
+IPS_DONE+IPSC_RX and IPS_DONE+IPSC_TX. Every other enabled purpose
+falls through to a plain dev_dbg_ratelimited() call and is never
+masked. If the underlying hardware condition for one of those other
+purposes is ever continuously true rather than a one-off event (as
+ERR_COHERENT/chain 0/TX is on this board), the interrupt re-fires as
+fast as the bus allows, forever -- and since dev_dbg_ratelimited() is
+compiled in but silent by default (no dynamic debug enabled), this
+happened with literally zero visible trace in dmesg/logread the whole
+time, despite completely wedging one CPU core permanently.
+
+Fix: mask (add to disable_int) every purpose that reaches the
+fallback branch too, exactly like the two DONE cases already do --
+the only difference being nothing re-enables these bits afterward
+(no NAPI-equivalent poll/re-arm exists for "rare error condition"
+purposes), which is the correct, conservative behavior for something
+that is only ever supposed to happen rarely: log it once (now at
+dev_warn_ratelimited so it is actually visible by default, instead of
+silent debug level), then leave it masked rather than let it
+potentially free-run. Also directly explains why RX still nominally
+worked throughout the hang (the RX-done path was never touched by
+this) and why the box stayed otherwise responsive (only the one CPU
+core handling this IRQ line was affected).
+
+Not yet confirmed why chain 0/TX hits a coherency error at all on
+this board -- that is a separate, deeper DMA/cache-coherency question
+this fix does not answer, only prevents from being catastrophic.
+
+--- a/econet_qdma.c
++++ b/econet_qdma.c
+@@ -408,11 +408,12 @@ static irqreturn_t en75_irq_handler(int irq_num, void *dev_instance)
+ 				disable_int |= BIT(bit);
+ 				continue;
+ 			}
+-			dev_dbg_ratelimited(qdma->dev,
+-					    "%s IRQ from %s[%d]\n",
++			dev_warn_ratelimited(qdma->dev,
++					    "%s IRQ from %s[%d], masking\n",
+ 					    en75_irq_purpose_type_str(p.type),
+ 					    en75_irq_purpose_source_str(p.source),
+ 					    p.chain);
++			disable_int |= BIT(bit);
+ 		}
+ 
+ 		irq->irqmask[i] &= ~disable_int;

@@ -1,0 +1,30 @@
+From: local
+Subject: econet-eth: remove the "rx: on unexpected fport" print entirely
+
+CORRECTED RATIONALE (this patch previously rate-limited, then
+debug-leveled, this print as a hypothesis for the periodic full-router
+hang investigated in the qdma deadlock bug report; that hang's real
+cause is now confirmed to be an unmasked ERR_COHERENT IRQ storm, fixed
+separately in patch 004, and is unrelated to this print or its
+volume -- see that patch and the bug report for the actual root
+cause).
+
+This message was emitted by en75_get_sport_dev() for every received
+packet whose fport is neither GDM1 nor GDM2 (typically CPU-port
+loopback/reflected traffic). It is expected, benign, informational
+noise -- the packet is still delivered correctly either way, to
+ports[0], identically regardless of this check -- not an error
+condition worth keeping any trace of, so the check and its print are
+removed outright rather than merely down-leveled.
+
+--- a/econet_eth.c
++++ b/econet_eth.c
+@@ -148,8 +148,6 @@ static struct net_device *en75_get_sport_dev(struct en75_eth_pvt *eth,
+ 	if (sport == ETX_FPORT_GDM2) {
+ 		return eth->ports[1];
+ 	} else {
+-		if (sport != ETX_FPORT_GDM1)
+-			dev_info(eth->pub.dev, "rx: on unexpected fport %d\n", sport);
+ 		return eth->ports[0];
+ 	}
+ }

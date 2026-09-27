@@ -1,0 +1,40 @@
+AUDIT 2026-09-11: the byte-order assumption below is incorrect. Patch 005
+corrects it for this big-endian target. DSCP here means DMA descriptor,
+not IP DSCP/QoS. Retained below as the history of this local patch.
+
+WIP / UNTESTED: add EN751627 to the SoC match table, copying en7528's
+dscp_byte_swap=false rather than en751221's, on the grounds that EN751627
+uses the same airoha,en7523-scu / EN7523_* reset binding as EN7528 (confirmed
+from the actual devicetree sources in this tree) rather than en751221's
+separate econet,en751221-scu binding. This value has not been verified
+against real EN751627 hardware.
+
+Needed for target/linux/econet's en751627_zyxel_ex3301-t0.dts, which now
+enables &ethernet/&switch using compatible = "econet,en751627-eth" /
+"econet,en751627-switch".
+
+--- a/econet_eth.c
++++ b/econet_eth.c
+@@ -431,9 +431,22 @@ static const struct en75_soc_data en7528_soc_data = {
+ 	.dscp_byte_swap = false,
+ };
+
++/*
++ * UNTESTED GUESS: EN751627 shares en7528's scu/reset binding (both use
++ * airoha,en7523-scu / EN7523_* reset constants, confirmed from the actual
++ * devicetree source), so this copies en7528_soc_data's value rather than
++ * en751221's. dscp_byte_swap has not been verified against real EN751627
++ * hardware -- if DSCP/QoS marking comes out wrong on this SoC, this is the
++ * first thing to flip.
++ */
++static const struct en75_soc_data en751627_soc_data = {
++	.dscp_byte_swap = false,
++};
++
+ static const struct of_device_id of_en75_match[] = {
+ 	{ .compatible = "econet,en751221-eth", .data = &en751221_soc_data },
+ 	{ .compatible = "econet,en7528-eth", .data = &en7528_soc_data },
++	{ .compatible = "econet,en751627-eth", .data = &en751627_soc_data },
+ 	{ /* sentinel */ }
+ };
+ MODULE_DEVICE_TABLE(of, of_en75_match);
