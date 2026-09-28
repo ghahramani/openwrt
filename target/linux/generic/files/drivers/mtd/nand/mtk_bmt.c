@@ -162,6 +162,7 @@ mtk_bmt_read(struct mtd_info *mtd, loff_t from,
 
 		from += cur_ops.len;
 		retry_count = 0;
+		ret = 0;
 	}
 
 out:

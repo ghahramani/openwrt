@@ -1,0 +1,42 @@
+From: local
+Subject: econet-eth: enable descriptor byte swapping on big-endian EN751627
+
+Patch 001 copied the EN7528 setting based on reset-controller similarity
+and incorrectly described dscp_byte_swap as an IP DSCP/QoS option. This
+flag controls the byte order of DMA packet descriptors, including packet
+addresses, lengths and next-descriptor indices. The driver writes those
+fields in native CPU byte order.
+
+The EN751627 target has CONFIG_CPU_BIG_ENDIAN=y, like EN751221, whose
+descriptor-swap setting is true. EN7528 has CONFIG_CPU_LITTLE_ENDIAN=y.
+Upstream commit 90b6d9b2c0e024fb17cc6abe8ec306673011caeb ("en7528 little
+endian support") introduced the per-SoC flag in place of unconditional
+descriptor swapping. The qdma_regs.h accessor also identifies this as
+descriptor endian swapping used on big-endian machines.
+
+Enable descriptor swapping for EN751627. Keep the existing IRQ storm
+guard: suppressing repeated ERR_COHERENT interrupts does not repair the
+underlying DMA failure. Whether this correction resolves the observed
+LAN data-path failure still requires testing on the EX3301-T0.
+
+--- a/econet_eth.c
++++ b/econet_eth.c
+@@ -430,15 +430,11 @@
+ };
+ 
+ /*
+- * UNTESTED GUESS: EN751627 shares en7528's scu/reset binding (both use
+- * airoha,en7523-scu / EN7523_* reset constants, confirmed from the actual
+- * devicetree source), so this copies en7528_soc_data's value rather than
+- * en751221's. dscp_byte_swap has not been verified against real EN751627
+- * hardware -- if DSCP/QoS marking comes out wrong on this SoC, this is the
+- * first thing to flip.
++ * EN751627 uses native big-endian DMA descriptors, like EN751221.
++ * DSCP here means descriptor; this setting does not control IP DSCP/QoS.
+  */
+ static const struct en75_soc_data en751627_soc_data = {
+-	.dscp_byte_swap = false,
++	.dscp_byte_swap = true,
+ };
+ 
+ static const struct of_device_id of_en75_match[] = {

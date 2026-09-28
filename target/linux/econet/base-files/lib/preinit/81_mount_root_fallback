@@ -1,0 +1,15 @@
+check_rootfs_overlay() {
+	[ "$INITRAMFS" = "1" ] && return
+
+	# If the overlay mounted successfully, /etc is writable.
+	# If mounting failed (e.g. unformatted flash from stock or corrupted JFFS2),
+	# the rootfs remains read-only squashfs.
+	if ! touch /etc/.fs_writable 2>/dev/null; then
+		echo "Overlay mount failed, activating temporary RAM overlay..."
+		mount_root ram
+	else
+		rm -f /etc/.fs_writable
+	fi
+}
+
+boot_hook_add preinit_mount_root check_rootfs_overlay

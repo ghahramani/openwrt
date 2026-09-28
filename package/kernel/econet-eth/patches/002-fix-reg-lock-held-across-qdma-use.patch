@@ -1,0 +1,60 @@
+From: local
+Subject: econet-eth: don't hold port->reg_lock (spinlock) across en75_qdma_use (mutex)
+
+Confirmed by CONFIG_PROVE_LOCKING (lockdep) on real EN751627 hardware:
+
+  [ BUG: Invalid wait context ]
+  netifd/2091 is trying to lock:
+  (&qdma->lock){....}-{3:3}, at: en75_qdma_use+0x1c/0xe8 [econet_eth]
+  context-{4:4}
+  2 locks held by netifd/2091:
+   #0: (rtnl_mutex){+.+.}-{3:3}, at: dev_ioctl+0x2cc/0x5f0
+   #1: (&port->reg_lock){+.+.}-{2:2}, at: en75_qdma_new+0xe90/0x20bc [econet_eth]
+
+en75_dev_open() takes port->reg_lock (a spinlock) via guard(spinlock), whose
+scope extends to the end of the function per its C cleanup-attribute
+semantics -- and en75_qdma_use() (still called within that scope, at the
+function's `return` statement) takes qdma->lock via mutex_lock_nested().
+Taking a sleeping-capable lock (mutex) while holding a non-sleeping one
+(spinlock) is what lockdep's wait-context check exists to catch.
+
+Every other guard(spinlock)(&port->reg_lock) call site in this file (in
+en75_set_gdm_port_fwd_cfg and en75_dev_change_mtu) has nothing after it
+that can sleep, so this appears to be the only site affected. The intended
+scope was almost certainly just the three register accesses immediately
+following the lock -- en75_set_macaddr() elsewhere in this same file
+already uses scoped_guard(spinlock, ...) { ... } for exactly this reason.
+Narrowing en75_dev_open's spinlock to a scoped_guard around just those
+register accesses (matching that existing style) drops the lock before
+en75_qdma_use() is reached, resolving the invalid wait context with no
+change in what's actually protected.
+
+This function (en75_qdma_new, which en75_dev_open's call path runs
+through) is also the exact function present in every stack trace of a
+separate, severe symptom: en75_qdma_xmit() permanently deadlocking under
+periodic multicast transmit load (see upstream bug report for the full
+writeup). Not yet confirmed whether this is the same root cause manifesting
+at a different call site, or a related-but-distinct locking issue in the
+same function -- testing against real hardware to see whether this specific
+fix also resolves the periodic deadlock, not just the boot-time lockdep hit.
+
+--- a/econet_port.c
++++ b/econet_port.c
+@@ -153,11 +153,12 @@ static int en75_dev_open(struct net_device *dev)
+ 	// 	airoha_fe_clear(qdma->eth, REG_GDM_INGRESS_CFG(port->id),
+ 	// 			GDM_STAG_EN_MASK);
+
+-	guard(spinlock)(&port->reg_lock);
+-	rlt = en75_rreg(&port->regs->rx_len_threshold);
+-	set_gdm_len_th_runt_len(&rlt, 60);
+-	set_gdm_len_th_oversize_len(&rlt, ETH_HLEN + dev->mtu + ETH_FCS_LEN);
+-	en75_wreg(rlt, &port->regs->rx_len_threshold);
++	scoped_guard(spinlock, &port->reg_lock) {
++		rlt = en75_rreg(&port->regs->rx_len_threshold);
++		set_gdm_len_th_runt_len(&rlt, 60);
++		set_gdm_len_th_oversize_len(&rlt, ETH_HLEN + dev->mtu + ETH_FCS_LEN);
++		en75_wreg(rlt, &port->regs->rx_len_threshold);
++	}
+
+ 	return en75_qdma_use(port->qdma);
+ }
