@@ -17,6 +17,9 @@ econet_setup_interfaces()
 	zyxel,ex3301-t0)
 		ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4" "wan"
 		;;
+	zyxel,wx3100-t0)
+		ucidef_set_interface_lan "lan1 lan2"
+		;;
 	*)
 		# The remaining boards have no DSA switch driver yet.
 		ucidef_set_interface_lan "eth0"

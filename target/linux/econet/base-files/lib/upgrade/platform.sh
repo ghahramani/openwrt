@@ -9,7 +9,8 @@ platform_check_image() {
 	jiofiber,jcow414)
 		return 0
 		;;
-	zyxel,ex3301-t0)
+	zyxel,ex3301-t0|\
+	zyxel,wx3100-t0)
 		if fwtool -q -i /dev/null "$1"; then
 			return 0
 		fi
@@ -37,7 +38,8 @@ platform_do_upgrade() {
 		CI_KERNPART="tclinux_kernel"
 		nand_do_upgrade "$1"
 		;;
-	zyxel,ex3301-t0)
+	zyxel,ex3301-t0|\
+	zyxel,wx3100-t0)
 		PART_NAME="tclinux"
 		MTD_ARGS="-e rootfs_data"
 		default_do_upgrade "$1"

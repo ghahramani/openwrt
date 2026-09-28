@@ -10,4 +10,14 @@ define Device/zyxel_ex3301-t0
   IMAGE/sysupgrade.bin := append-kernel | lzma | tclinux-trx | append-metadata
   DEVICE_PACKAGES := kmod-usb3 kmod-econet-eth kmod-mt7915e kmod-mt7915-firmware
 endef
-TARGET_DEVICES += zyxel_ex3301-t0
+define Device/zyxel_wx3100-t0
+  DEVICE_VENDOR := Zyxel
+  DEVICE_MODEL := WX3100-T0
+  DEVICE_DTS := en751627_zyxel_wx3100-t0
+  SUPPORTED_DEVICES := zyxel,wx3100-t0
+  IMAGES := tclinux.trx sysupgrade.bin
+  IMAGE/tclinux.trx := append-kernel | lzma | tclinux-trx
+  IMAGE/sysupgrade.bin := append-kernel | lzma | tclinux-trx | append-metadata
+  DEVICE_PACKAGES := kmod-usb3 kmod-econet-eth kmod-mt7915e kmod-mt7915-firmware
+endef
+TARGET_DEVICES += zyxel_ex3301-t0 zyxel_wx3100-t0
