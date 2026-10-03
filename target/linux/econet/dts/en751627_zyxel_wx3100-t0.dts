@@ -59,10 +59,23 @@
 			linux,default-trigger = "phy0tpt";
 			default-state = "off";
 		};
+
+		led_wps_green: wps-green {
+			label = "green:wps";
+			gpios = <&gpio0 23 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		led_wps_red: wps-red {
+			label = "red:wps";
+			gpios = <&gpio0 22 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
 	};
 
 	keys {
-		compatible = "gpio-keys";
+		compatible = "gpio-keys-polled";
+		poll-interval = <100>;
 
 		key-reset {
 			label = "reset";

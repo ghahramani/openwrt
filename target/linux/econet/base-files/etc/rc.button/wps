@@ -1,0 +1,39 @@
+#!/bin/sh
+
+[ "$ACTION" = "released" ] || exit 0
+
+wps_green="/sys/class/leds/green:wps"
+wps_red="/sys/class/leds/red:wps"
+
+# Always ensure red is off
+if [ -d "$wps_red" ]; then
+	echo none > "$wps_red/trigger"
+	echo 0 > "$wps_red/brightness"
+fi
+
+if [ -d "$wps_green" ]; then
+	curr_trig=$(cat "$wps_green/trigger" 2>/dev/null | sed -n 's/.*\[\(.*\)\].*/\1/p')
+	if [ "$curr_trig" = "timer" ]; then
+		# Already blinking -> turn OFF
+		echo none > "$wps_green/trigger"
+		echo 0 > "$wps_green/brightness"
+	else
+		# Start blinking green (500ms on / 500ms off) for 120s
+		echo timer > "$wps_green/trigger"
+		echo 500 > "$wps_green/delay_on"
+		echo 500 > "$wps_green/delay_off"
+		(
+			sleep 120
+			now_trig=$(cat "$wps_green/trigger" 2>/dev/null | sed -n 's/.*\[\(.*\)\].*/\1/p')
+			if [ "$now_trig" = "timer" ]; then
+				echo none > "$wps_green/trigger"
+				echo 0 > "$wps_green/brightness"
+			fi
+		) &
+	fi
+fi
+
+for s in /etc/rc.wps/*; do
+	[ -x "$s" ] || continue
+	"$s" && break
+done
