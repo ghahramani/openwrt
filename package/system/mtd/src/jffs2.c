@@ -134,7 +134,8 @@ static inline void add_data(char *ptr, int len)
 
 static void prep_eraseblock(void)
 {
-	if (ofs > 0)
+	/* NAND cleanmarkers belong in OOB, not in the data area. */
+	if (ofs > 0 || mtdtype == MTD_NANDFLASH)
 		return;
 
 	add_data(CLEANMARKER, sizeof(CLEANMARKER) - 1);
