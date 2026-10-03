@@ -47,16 +47,16 @@
 			default-state = "off";
 		};
 
-		led_wifi: wifi {
-			label = "green:wifi";
-			gpios = <&gpio0 20 GPIO_ACTIVE_LOW>;
-			linux,default-trigger = "phy0tpt";
+		led_link_red: link-red {
+			label = "red:link";
+			gpios = <&gpio0 3 GPIO_ACTIVE_LOW>;
 			default-state = "off";
 		};
 
-		led_wps: wps {
-			label = "green:wps";
-			gpios = <&gpio0 23 GPIO_ACTIVE_LOW>;
+		led_wifi: wifi {
+			label = "green:wifi";
+			gpios = <&gpio0 21 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "phy0tpt";
 			default-state = "off";
 		};
 	};

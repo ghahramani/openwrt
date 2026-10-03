@@ -52,7 +52,6 @@ zyxel,wx3100-t0)
 	ucidef_set_led_default "power" "Power" "green:power" "1"
 	ucidef_set_led_netdev "link" "Link" "green:link" "br-lan" "link tx rx"
 	ucidef_set_led_wlan "wifi" "Wi-Fi" "green:wifi" "phy0tpt"
-	ucidef_set_led_wlan "wps" "WPS" "green:wps" "phy1tpt"
 	;;
 esac
 
