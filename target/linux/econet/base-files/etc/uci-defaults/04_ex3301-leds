@@ -1,0 +1,52 @@
+#!/bin/sh
+# Retire the temporary polarity workaround after upgrading to corrected GPIOs.
+
+. /lib/functions.sh
+
+[ "$(board_name)" = "zyxel,ex3301-t0" ] || exit 0
+
+migrate_led() {
+	local section="$1" trigger sysfs
+
+	config_get trigger "$section" trigger
+	config_get sysfs "$section" sysfs
+
+	if [ "$sysfs" = "green:wps" ]; then
+		uci set "system.$section.sysfs=amber:wlan2g"
+	fi
+
+	[ "$trigger" = "ex3301-polarity" ] || return 0
+
+	case "$sysfs" in
+	green:lan|green:wan)
+		uci set "system.$section.trigger=netdev"
+		;;
+	*)
+		uci set "system.$section.trigger=none"
+		;;
+	esac
+}
+
+config_load system
+config_foreach migrate_led led
+uci commit system
+
+for service in ex3301-led-links ex3301-led-polarity; do
+	[ -x "/etc/init.d/$service" ] || continue
+	"/etc/init.d/$service" stop
+	"/etc/init.d/$service" disable
+	rm -f "/etc/init.d/$service"
+done
+rm -f /usr/libexec/ex3301-led-links /usr/libexec/led-trigger/ex3301-polarity
+
+if [ -f /etc/sysupgrade.conf ]; then
+	sed -i '\|^/usr/libexec/ex3301-led-links$|d;
+		\|^/usr/libexec/led-trigger/ex3301-polarity$|d;
+		\|^/etc/init.d/ex3301-led-links$|d;
+		\|^/etc/rc.d/S97ex3301-led-links$|d;
+		\|^/etc/rc.d/K10ex3301-led-links$|d;
+		\|^/etc/init.d/ex3301-led-polarity$|d;
+		\|^/etc/rc.d/S97ex3301-led-polarity$|d' /etc/sysupgrade.conf
+fi
+
+exit 0

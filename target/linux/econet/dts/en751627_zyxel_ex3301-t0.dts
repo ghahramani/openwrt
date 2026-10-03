@@ -31,13 +31,13 @@
 
 		led_power_green: power-green {
 			label = "green:power";
-			gpios = <&gpio0 8 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpio0 8 GPIO_ACTIVE_LOW>;
 			default-state = "on";
 		};
 
 		led_power_red: power-red {
 			label = "red:power";
-			gpios = <&gpio0 6 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpio0 6 GPIO_ACTIVE_LOW>;
 			default-state = "off";
 		};
 
@@ -49,7 +49,7 @@
 
 		led_internet_red: internet-red {
 			label = "red:internet";
-			gpios = <&gpio0 3 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpio0 3 GPIO_ACTIVE_LOW>;
 			default-state = "off";
 		};
 
@@ -68,20 +68,20 @@
 		};
 
 		led_wps: wps {
-			label = "green:wps";
-			gpios = <&gpio0 23 GPIO_ACTIVE_HIGH>;
+			label = "amber:wlan2g";
+			gpios = <&gpio0 23 GPIO_ACTIVE_LOW>;
 			default-state = "off";
 		};
 
 		led_lan_agg: lan-agg {
 			label = "green:lan";
-			gpios = <&gpio1 6 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpio1 6 GPIO_ACTIVE_LOW>;
 			default-state = "off";
 		};
 
 		led_wan_eth: wan-eth {
 			label = "green:wan";
-			gpios = <&gpio1 7 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpio1 7 GPIO_ACTIVE_LOW>;
 			default-state = "off";
 		};
 	};
