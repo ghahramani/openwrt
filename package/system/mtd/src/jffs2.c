@@ -26,6 +26,7 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <endian.h>
+#include <mtd/mtd-user.h>
 #include "jffs2.h"
 #include "crc32.h"
 #include "mtd.h"
@@ -48,6 +49,49 @@ static int target_ino = 0;
 
 static void prep_eraseblock(void);
 
+static void write_eraseblock(void)
+{
+	int i, j;
+
+	if (mtd_erase_block(outfd, mtdofs) < 0) {
+		fprintf(stderr, "Failed to erase JFFS2 block\n");
+		exit(1);
+	}
+
+	if (mtdtype == MTD_NANDFLASH) {
+		if (writesize <= 0 || erasesize % writesize) {
+			fprintf(stderr, "Invalid NAND page size\n");
+			exit(1);
+		}
+
+		/*
+		 * Leave padding pages erased so JFFS2 can program them later.
+		 * Programming 0xff still writes NAND ECC parity and a second
+		 * program can corrupt it when the filesystem appends data.
+		 */
+		for (i = 0; i < erasesize; i += writesize) {
+			for (j = 0; j < writesize; j++)
+				if ((unsigned char)buf[i + j] != 0xff)
+					break;
+			if (j == writesize)
+				continue;
+			if (mtd_write_buffer(outfd, buf + i, mtdofs + i,
+					     writesize) < 0)
+				goto write_error;
+		}
+	} else if (mtd_write_buffer(outfd, buf, mtdofs, erasesize) < 0) {
+		goto write_error;
+	}
+
+	if (lseek(outfd, mtdofs + erasesize, SEEK_SET) < 0)
+		goto write_error;
+	return;
+
+write_error:
+	fprintf(stderr, "Failed to write JFFS2 block\n");
+	exit(1);
+}
+
 static void pad(int size)
 {
 	if ((ofs % size == 0) && (ofs < erasesize))
@@ -68,8 +112,7 @@ static void pad(int size)
 			/* Move the file pointer along over the bad block. */
 			lseek(outfd, erasesize, SEEK_CUR);
 		}
-		mtd_erase_block(outfd, mtdofs);
-		write(outfd, buf, erasesize);
+		write_eraseblock();
 		mtdofs += erasesize;
 	}
 }

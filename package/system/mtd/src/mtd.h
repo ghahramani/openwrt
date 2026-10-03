@@ -13,6 +13,8 @@
 extern int quiet;
 extern int mtdsize;
 extern int erasesize;
+extern int writesize;
+extern int mtdtype;
 extern uint32_t opt_trxmagic;
 
 extern int mtd_open(const char *mtd, bool block, bool write_mode);

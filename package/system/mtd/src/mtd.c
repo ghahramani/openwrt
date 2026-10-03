@@ -92,6 +92,7 @@ int quiet;
 int no_erase;
 int mtdsize = 0;
 int erasesize = 0;
+int writesize = 0;
 int jffs2_skip_bytes=0;
 int mtdtype = 0;
 uint32_t opt_trxmagic = TRX_MAGIC;
@@ -146,6 +147,7 @@ int mtd_check_open(const char *mtd, bool write_mode)
 	}
 	mtdsize = mtdInfo.size;
 	erasesize = mtdInfo.erasesize;
+	writesize = mtdInfo.writesize;
 	mtdtype = mtdInfo.type;
 
 	return fd;
