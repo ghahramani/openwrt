@@ -33,6 +33,8 @@ Options:
   --model    Model/platform name, max 31 chars (default: empty)
   --loadaddr Address the bootloader decompresses the kernel to
              (default: 0x80020000)
+  --blocksize NAND erase block size, used by --fixup (default: 128k)
+  --pagesize  NAND page size, used by --fixup (default: 2048)
   --fixup    Refresh an existing TRX header after appending UBI
 EOF
     exit 1
@@ -45,6 +47,8 @@ version=""
 endian="be"
 model=""
 loadaddr="0x80020000"
+blocksize="128k"
+pagesize="2048"
 fixup=""
 
 # Parse named arguments
@@ -74,6 +78,14 @@ while [ $# -gt 0 ]; do
             loadaddr="$2"
             shift 2
             ;;
+        --blocksize)
+            blocksize="$2"
+            shift 2
+            ;;
+        --pagesize)
+            pagesize="$2"
+            shift 2
+            ;;
         --fixup)
             fixup="$2"
             shift 2
@@ -88,6 +100,14 @@ while [ $# -gt 0 ]; do
 done
 
 which zytrx >/dev/null || die "zytrx not found in PATH $PATH"
+
+size_to_bytes() {
+    case "$1" in
+        *k|*K) echo $(( ${1%[kK]} * 1024 )) ;;
+        *m|*M) echo $(( ${1%[mM]} * 1024 * 1024 )) ;;
+        *) echo "$1" ;;
+    esac
+}
 
 if [ -z "$fixup" ]; then
     # Validate required arguments
@@ -129,6 +149,10 @@ if [ -z "$fixup" ]; then
 else
     [ -f "$fixup" ] || die "TRX file not found: $fixup"
     [ -z "$kernel$rootfs$version$model" ] || die "--fixup cannot be combined with image creation"
+    peb_size=$(size_to_bytes "$blocksize")
+    page_size=$(size_to_bytes "$pagesize")
+    [ "$peb_size" -ge 4096 ] || die "Invalid erase block size: $blocksize"
+    [ "$page_size" -ge 512 ] || die "Invalid page size: $pagesize"
 fi
 
 padding() {
@@ -231,7 +255,7 @@ tclinux_trx_hdr() {
 }
 
 if [ -n "$fixup" ]; then
-    python3 - "$fixup" "$PAD_ROOTFS_OFFSET_TO" <<'EOF'
+    python3 - "$fixup" "$PAD_ROOTFS_OFFSET_TO" "$peb_size" "$page_size" <<'EOF'
 import struct
 import sys
 import zlib
@@ -239,8 +263,8 @@ import zlib
 path = sys.argv[1]
 kernel_size = int(sys.argv[2])
 header_size = 256
-peb_size = 128 * 1024
-page_size = 2048
+peb_size = int(sys.argv[3])
+page_size = int(sys.argv[4])
 
 def die(message):
     sys.exit(message)

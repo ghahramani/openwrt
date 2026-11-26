@@ -26,7 +26,7 @@ define Build/kernel-trx
 endef
 
 define Build/tclinux-trx-fixup
-  ./tclinux-trx.sh --fixup $@ > $@.new
+  ./tclinux-trx.sh --fixup $@ --blocksize $(BLOCKSIZE) --pagesize $(PAGESIZE) > $@.new
 	mv $@.new $@
 endef
 

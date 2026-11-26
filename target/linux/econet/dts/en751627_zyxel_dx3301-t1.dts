@@ -1,0 +1,366 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+/dts-v1/;
+
+#include "en751627.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/leds/common.h>
+
+/ {
+	model = "Zyxel DX3301-T1";
+	compatible = "zyxel,dx3301-t1", "econet,en751627";
+
+	aliases {
+		led-boot = &led_power_green;
+		led-failsafe = &led_power_red;
+		led-running = &led_power_green;
+		led-upgrade = &led_power_red;
+	};
+
+	memory@0 {
+		device_type = "memory";
+		reg = <0x00000000 0x10000000>;
+	};
+
+	chosen {
+		stdout-path = "/serial@1fbf0000:115200";
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		led_power_green: led-0 {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_POWER;
+			gpios = <&gpio0 8 GPIO_ACTIVE_LOW>;
+			default-state = "on";
+		};
+
+		led_power_red: led-1 {
+			color = <LED_COLOR_ID_RED>;
+			function = LED_FUNCTION_POWER;
+			gpios = <&gpio0 6 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		led_internet_green: led-2 {
+			color = <LED_COLOR_ID_GREEN>;
+			function = "internet";
+			gpios = <&gpio0 4 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		led_internet_red: led-3 {
+			color = <LED_COLOR_ID_RED>;
+			function = "internet";
+			gpios = <&gpio0 3 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		led_wlan24: led-4 {
+			color = <LED_COLOR_ID_GREEN>;
+			function = "wlan2g";
+			gpios = <&gpio0 21 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "phy0tpt";
+			default-state = "off";
+		};
+
+		led_wlan5: led-5 {
+			color = <LED_COLOR_ID_GREEN>;
+			function = "wlan5g";
+			gpios = <&gpio0 20 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "phy1tpt";
+			default-state = "off";
+		};
+
+		/*
+		 * Panel map verified on hardware 2026-11-22. There is no DSL LED
+		 * and no separate WAN LED on this FTTH variant.
+		 */
+		led_wlan24_amber: led-9 {
+			color = <LED_COLOR_ID_AMBER>;
+			function = "wlan2g";
+			gpios = <&gpio0 23 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		led_wlan5_amber: led-12 {
+			color = <LED_COLOR_ID_AMBER>;
+			function = "wlan5g";
+			gpios = <&gpio0 22 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		led_wps: led-6 {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_WPS;
+			gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		led_phone_green: led-11 {
+			color = <LED_COLOR_ID_GREEN>;
+			function = "phone";
+			gpios = <&gpio0 9 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		led_phone_amber: led-13 {
+			color = <LED_COLOR_ID_AMBER>;
+			function = "phone";
+			gpios = <&gpio0 10 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		led_lan_agg: led-7 {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_LAN;
+			gpios = <&gpio1 6 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+	};
+
+	keys {
+		compatible = "gpio-keys-polled";
+		poll-interval = <100>;
+
+		key-reset {
+			label = "reset";
+			gpios = <&gpio0 0 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_RESTART>;
+		};
+
+		key-wps {
+			label = "wps";
+			gpios = <&gpio0 16 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_WPS_BUTTON>;
+		};
+
+		key-wifi {
+			label = "wifi";
+			gpios = <&gpio0 2 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_RFKILL>;
+		};
+	};
+};
+
+&nand {
+	status = "okay";
+	econet,bmt;
+	econet,bbt-table-size = <250>;
+	/*
+	 * Bring-up check only: the driver warns this must not be used in
+	 * production because the reserve size grows when a reserve block
+	 * wears out, which would then abort the NAND probe.
+	 * econet,assert-reserve-size = <167>;
+	 */
+
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		partition@0 {
+			label = "bootloader";
+			reg = <0x0 0x40000>;
+			read-only;
+
+			nvmem-layout {
+				compatible = "fixed-layout";
+				#address-cells = <1>;
+				#size-cells = <1>;
+
+				macaddr_bootloader_ff48: macaddr@ff48 {
+					compatible = "mac-base";
+					reg = <0xff48 0x6>;
+					#nvmem-cell-cells = <1>;
+				};
+			};
+		};
+
+		partition@40000 {
+			label = "romfile";
+			reg = <0x40000 0x40000>;
+			read-only;
+		};
+
+		partition@80000 {
+			label = "tclinux_kernel";
+			reg = <0x80000 0x400000>;
+			econet,enable-remap;
+		};
+
+		partition@480000 {
+			label = "ubi";
+			reg = <0x480000 0x3800000>;
+		};
+
+		partition@3c80000 {
+			label = "tclinux_slave";
+			reg = <0x3c80000 0x3c00000>;
+			read-only;
+		};
+
+		partition@7880000 {
+			label = "wwan";
+			reg = <0x7880000 0x100000>;
+		};
+
+		partition@7980000 {
+			label = "data";
+			reg = <0x7980000 0x400000>;
+			read-only;
+		};
+
+		partition@7d80000 {
+			label = "rom-d";
+			reg = <0x7d80000 0x100000>;
+			read-only;
+		};
+
+		partition@7e80000 {
+			label = "misc";
+			reg = <0x7e80000 0x152c0000>;
+			read-only;
+		};
+
+		partition@1d140000 {
+			label = "Factory";
+			reg = <0x1d140000 0x80000>;
+			read-only;
+		};
+
+		partition@1d1c0000 {
+			label = "cert";
+			reg = <0x1d1c0000 0x100000>;
+			read-only;
+		};
+
+		/*
+		 * Writable: the zloader boot flag lives at block 5, offset 4095.
+		 * The 5 GHz EEPROM is a 4 KiB blob at offset 0x4a000.
+		 */
+		partition@1d2c0000 {
+			label = "reservearea";
+			reg = <0x1d2c0000 0x180000>;
+
+			nvmem-layout {
+				compatible = "fixed-layout";
+				#address-cells = <1>;
+				#size-cells = <1>;
+
+				eeprom_reservearea_4a000: eeprom@4a000 {
+					reg = <0x4a000 0x1000>;
+				};
+			};
+		};
+	};
+};
+
+&pcie0 {
+	status = "okay";
+};
+
+&slot0 {
+	status = "okay";
+
+	wifi@0,0 {
+		compatible = "mediatek,mt76";
+		reg = <0x0000 0 0 0 0>;
+		nvmem-cells = <&eeprom_reservearea_4a000>;
+		nvmem-cell-names = "eeprom";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		band@0 {
+			reg = <0>;
+			nvmem-cells = <&macaddr_bootloader_ff48 1>;
+			nvmem-cell-names = "mac-address";
+		};
+
+		band@1 {
+			reg = <1>;
+			nvmem-cells = <&macaddr_bootloader_ff48 2>;
+			nvmem-cell-names = "mac-address";
+		};
+	};
+};
+
+&pcie1 {
+	status = "okay";
+
+	/* Slot 1 is a second link to the same wifi chip */
+};
+
+&ethernet {
+	status = "okay";
+};
+
+&gmac0 {
+	nvmem-cells = <&macaddr_bootloader_ff48 0>;
+	nvmem-cell-names = "mac-address";
+	status = "okay";
+};
+
+&switch {
+	status = "okay";
+};
+
+&gsw_port3 {
+	status = "okay";
+	label = "lan1";
+};
+
+&gsw_port2 {
+	status = "okay";
+	label = "lan2";
+};
+
+&gsw_port1 {
+	status = "okay";
+	label = "lan3";
+};
+
+&gsw_port0 {
+	status = "okay";
+	label = "lan4";
+};
+
+&gsw_port4 {
+	status = "okay";
+	label = "wan";
+};
+
+&gsw_phy3_led0 {
+	color = <LED_COLOR_ID_GREEN>;
+	function = LED_FUNCTION_LAN;
+	function-enumerator = <1>;
+	status = "okay";
+};
+
+&gsw_phy2_led0 {
+	color = <LED_COLOR_ID_GREEN>;
+	function = LED_FUNCTION_LAN;
+	function-enumerator = <2>;
+	status = "okay";
+};
+
+&gsw_phy1_led0 {
+	color = <LED_COLOR_ID_GREEN>;
+	function = LED_FUNCTION_LAN;
+	function-enumerator = <3>;
+	status = "okay";
+};
+
+&gsw_phy0_led0 {
+	color = <LED_COLOR_ID_GREEN>;
+	function = LED_FUNCTION_LAN;
+	function-enumerator = <4>;
+	status = "okay";
+};
+
+&gsw_phy4_led0 {
+	color = <LED_COLOR_ID_GREEN>;
+	function = LED_FUNCTION_WAN;
+	status = "okay";
+};

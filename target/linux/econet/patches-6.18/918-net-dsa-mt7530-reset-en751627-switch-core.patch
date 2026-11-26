@@ -1,0 +1,49 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Fabio Sussarellu <sussarellu.fabio@gmail.com>
+Date: Wed, 25 Nov 2026 16:30:00 +0100
+Subject: [PATCH] net: dsa: mt7530: reset the EN751627 switch core at probe
+
+EN751627 has no external reset: mt7988_setup() deliberately skips the
+SCU reset (the clk-en7523 reset line is not usable here) and replaces
+the MT7530_SYS_CTRL PHY reset with LED setup. The switch core therefore
+keeps whatever state it had when the SoC hands it to Linux, and its
+address-table engine stops accepting commands once the core goes idle.
+
+If the DSA probe runs while the engine is idle -- which happens when no
+port has been brought up yet, most visibly on a warm reboot -- the
+address-table flush in mt7531_setup_common() sets ATC_BUSY and never
+sees it clear:
+
+    mt7530-mmio 1fb58000.ethernet-switch: reset timeout
+    mt7530-mmio 1fb58000.ethernet-switch: probe with driver mt7530-mmio failed with error -145
+
+and lan1-lan4/wan never appear. Verified on a DX3301-T1: with the
+address-table engine idle, a direct mmio read of MT7530_ATC returns
+0x00008002 (ATC_BUSY stuck); issuing the internal reset
+(SYS_CTRL_SW_RST | SYS_CTRL_REG_RST) clears it and an immediate
+re-probe succeeds and creates all five ports.
+
+Do the same internal reset mt7530_setup()/mt7531_setup() already do, so
+the driver never starts from an unknown switch state.
+
+Signed-off-by: Fabio Sussarellu <sussarellu.fabio@gmail.com>
+---
+--- a/drivers/net/dsa/mt7530.c
++++ b/drivers/net/dsa/mt7530.c
+@@ -3311,7 +3311,17 @@ static int mt7988_setup(struct dsa_switch *ds)
+ 	if (priv->id != ID_EN751627) {
+ 		mt7530_write(priv, MT7530_SYS_CTRL, SYS_CTRL_PHY_RST);
+ 	} else {
++		/* There is no external reset for EN751627: the switch core
++		 * keeps its state across warm reboots, and its address-table
++		 * engine can be idle when the SoC brings the core up late.
++		 * Reset it in-band, otherwise the FDB flush in
++		 * mt7531_setup_common() never completes ("reset timeout").
++		 */
++		mt7530_write(priv, MT7530_SYS_CTRL,
++			     SYS_CTRL_SW_RST | SYS_CTRL_REG_RST);
++		usleep_range(1000, 2000);
++
+ 		mt7530_write(priv, MT7530_LED_EN, 0x77777);
+ 		mt7530_write(priv, MT7530_LED_IO_MODE, 0x77777);
+ 	}

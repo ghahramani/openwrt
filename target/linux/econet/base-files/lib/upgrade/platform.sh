@@ -14,6 +14,7 @@ platform_check_image() {
 		return 0
 		;;
 	zyxel,ex3301-t0|\
+	zyxel,dx3301-t1|\
 	zyxel,wx3100-t0)
 		[ "$#" -eq 1 ] || return 1
 		[ "$(get_magic_long "$1")" = "73797375" ] || {
@@ -49,6 +50,7 @@ platform_do_upgrade() {
 	jiofiber,jcow407|\
 	jiofiber,jcow414|\
 	zyxel,ex3301-t0|\
+	zyxel,dx3301-t1|\
 	zyxel,wx3100-t0)
 		CI_KERNPART="tclinux_kernel"
 		nand_do_upgrade "$1"

@@ -1,0 +1,20 @@
+--- a/drivers/leds/trigger/ledtrig-netdev.c
++++ b/drivers/leds/trigger/ledtrig-netdev.c
+@@ -718,8 +718,15 @@
+ 		if (dev) {
+ 			const char *name = dev_name(dev);
+ 
+-			trigger_data->hw_control = true;
+-			set_device_name(trigger_data, name, strlen(name));
++			/*
++			 * A PHY LED can be activated while its attached netdev
++			 * is still being registered, so dev_name() may be NULL.
++			 * Fall back to software triggering instead of crashing.
++			 */
++			if (name) {
++				trigger_data->hw_control = true;
++				set_device_name(trigger_data, name, strlen(name));
++			}
+ 
+ 			rc = led_cdev->hw_control_get(led_cdev, &mode);
+ 			if (!rc)
